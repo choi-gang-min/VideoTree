@@ -61,7 +61,7 @@ def launch():
         pred, info = model.forward(prompter.head, prompt)
         ukey_name = 'quid' if 'quid' in item else 'uid'
         # print("pred: ", pred)
-        ukey = item[ukey_name]
+        ukey = item[ukey_name]+'_'+str(item['qid'])
 
         processed[ukey] = item
 

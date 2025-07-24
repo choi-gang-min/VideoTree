@@ -1,3 +1,4 @@
+import argparse
 from PIL import Image
 import requests
 import torch
@@ -91,7 +92,9 @@ def cosine_similarity(points, centroid):
     """
     points_normalized = F.normalize(points, dim=1)
     centroid_normalized = F.normalize(centroid.unsqueeze(0), dim=1)
-    return 1 - torch.mm(points_normalized, centroid_normalized.T).squeeze()
+    sim = 1 - torch.mm(points_normalized.cuda(), centroid_normalized.cuda().T).squeeze()
+    sim = sim.cpu()  # Ensure the result is on CPU
+    return sim#1 - torch.mm(points_normalized, centroid_normalized.T).squeeze()
 
 def find_closest_points_in_temporal_order_subsub(x, clusters, relevance_scores):
     closest_points_indices = []
@@ -216,19 +219,19 @@ def save_json(data, fn, indent=4):
         json.dump(data, f, indent=indent)
 
 
-def depth_expansion():
+def depth_expansion(args):
     device = "cuda" if torch.cuda.is_available() else "cpu" 
 
     output_base_path = Path('./clip_es')
     output_base_path.mkdir(parents=True, exist_ok=True)
-    base_path = Path('path/to/data/egoschema_frames')
-    save_folder = '/path/to/egoschema/frame_features'
+    base_path = Path(args.base_path)
+    save_folder = Path(args.save_folder)
 
-    rel_path = '/path/to/output/of/dynamic_width_expansion/relevance_score.json'
+    rel_path = os.path.join(args.result_path,'relevance_score.json')
     with open(rel_path, 'r') as file:
         cap_score_data = json.load(file)
 
-    width_res_path = '/path/to/output/of/dynamic_width_expansion/width_res.json'
+    width_res_path = os.path.join(args.result_path,'width_res.json')
     with open(width_res_path, 'r') as file:
         width_res_data = json.load(file)
     width_cluster_id_dict = {item['name']: item['cluster_ids_x'] for item in width_res_data}
@@ -236,7 +239,7 @@ def depth_expansion():
 
     all_data = []
 
-    with open('path/data/egoschema/subset_answers.json', 'r') as file:
+    with open(args.annotation_json_path, 'r') as file:
         json_data = json.load(file)    
     subset_names_list = list(json_data.keys())
     # print("subset_names_list",subset_names_list)
@@ -256,7 +259,17 @@ def depth_expansion():
 
         name_ids = example_path.name
         img_feats = load_image_features(name_ids, save_folder)
-        relevance_scores = cap_score_data['data'][name_ids]['pred']
+        
+        #이건 아마 EGOSCHEMA용인듯
+        if args.dataset == 'egoschema':
+            relevance_scores = cap_score_data['data'][name_ids]['pred']
+    
+        elif args.dataset == 'intentqa':
+            relevance_scores = cap_score_data[name_ids]['pred']
+        else:
+            pass 
+
+
         primary_cluster_ids = width_cluster_id_dict.get(name_ids, None)
 
         img_feats = img_feats.cpu()
@@ -270,11 +283,28 @@ def depth_expansion():
 
         pbar.update(1)
 
-    save_json(all_data, '/path/to/save/output/depth_expansion_res.json')
+    save_json(all_data, os.path.join(args.result_path,'depth_expansion_res.json'))
 
     pbar.close()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser("")
+    parser.add_argument("--result_path", required=True,default='', type=str)
+    
+    parser.add_argument("--base_path", required=True,default='/local_datasets/egoschema/frames', type=str)
+    #프레임뽑은데
 
+    parser.add_argument("--save_folder", required=True,default='/local_datasets/egoschema/features', type=str)
+    #피쳐경로
+
+    parser.add_argument("--annotation_json_path", default='anno_file/subset_anno.json', type=str)
+    #annot 경로. intentqa인 경우 caption경로
+
+    parser.add_argument("--dataset", default='intentqa', type=str, choices=['egoschema', 'intentqa'])
+
+    return parser.parse_args()
 if __name__ == '__main__':
-    depth_expansion()
+    args=parse_args()
+    print(args)
+    depth_expansion(args)

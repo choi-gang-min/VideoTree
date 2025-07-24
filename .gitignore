@@ -1,0 +1,11 @@
+*.pyc
+*.sh
+!anno_file/*.json
+*.json
+*.pyc
+*.out
+*.err
+*.vscode
+kmeans_pytorch
+
+*.srt

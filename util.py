@@ -35,8 +35,12 @@ def parse_args():
 
     # subset
     parser.add_argument("--data_path", default='path/data/egoschema/lavila_subset.json', type=str) 
+    # datapath가 caption
     parser.add_argument("--anno_path", default='path/data/egoschema/subset_anno.json', type=str)
-    parser.add_argument("--duration_path", default='path/data/egoschema/duration.json', type=str) 
+    # annotationpath 가 qa
+
+    
+    parser.add_argument("--duration_path", default='/data/gangmin3552/project/video_tree/VideoTree/anno_file/duration.json', type=str) 
 
     # # fullset  
     # parser.add_argument("--data_path", default='/data/path/lavila_fullset.json', type=str) 

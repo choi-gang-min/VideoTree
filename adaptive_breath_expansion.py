@@ -86,6 +86,12 @@ def launch():
     pbar = tqdm(total=len(dataset))
     for i, item in enumerate(dataset):
         ukey_1 = item['quid'] if 'quid' in item else item['uid']
+        
+        # 어디 비디오에서 삑나나 보자
+        print(f"\nProcessing video: {ukey_1}")
+        print("QuestionID : ",item['qid'])
+        print("Question : ", item['question'])
+        
 
         #init the cluster parameters
         tree_node = [0]
@@ -100,7 +106,9 @@ def launch():
 
         # load frame features
         frame_feats = load_frame_features(ukey_1, frame_feat_path)
-
+        
+        frame_length = frame_feats.shape[0]
+        print(f"Length of Frame : {frame_length} ")
         ### adaptive width expansion
         while(True):
             # width expansion
@@ -124,14 +132,35 @@ def launch():
             # the output is the predicted frame relevance
             frame_relevance = pred
             high_relevance_frame_num = frame_relevance.count(3)
+            
+            
+            
+            # if high_relevance_frame_num < iter_threshold:
+            #     if cluster_num < max_cluster_num:
+            #         cluster_num = cluster_num * adaptive_rate
+            #     else:
+            #         break
+            # else:
+            #     break
 
             if high_relevance_frame_num < iter_threshold:
-                if cluster_num < max_cluster_num:
-                    cluster_num = cluster_num * adaptive_rate
+                next_cluster_num = int(cluster_num * adaptive_rate)
+                
+                # frame_length와 max_cluster_num 중 작은 값을 상한선으로
+                upper_limit = min(frame_length, max_cluster_num)
+                
+                if next_cluster_num <= upper_limit:
+                    cluster_num = next_cluster_num
+                elif cluster_num < upper_limit:
+                    # 마지막으로 상한선 값으로 한 번 더 시도
+                    cluster_num = upper_limit
                 else:
+                    # 이미 상한선에 도달했으면 종료
                     break
             else:
                 break
+            
+            
         all_width_res.append({"name": ukey_1, "tree_node": tree_node, "cluster_ids_x": cluster_ids_x})
 
 
@@ -148,8 +177,10 @@ def launch():
         if i % args.save_every == 0:
             save_json(processed, output_path)
         pbar.update(1)
+        print(f"Finished Processing video: {ukey_1}, cluster num: {cluster_num}")
 
     save_json(all_width_res, output_width_res_path)
+    
 
     # incorporate with backup prediction
     if len(args.backup_pred_path) > 0:

@@ -108,7 +108,7 @@ class NextDataset(BaseDataset):
             question, truth = row['question'], row['answer']
             qid, q_type = row['qid'], row['type']
             choices = [row['a0'], row['a1'], row['a2'], row['a3'], row['a4']]
-            quid = f'{uid}_{qid}'
+            quid = f'{uid}'
             narration = self.format_narration(self.narrations[uid])
             duration = int(self.durations[uid])
             data.append({
