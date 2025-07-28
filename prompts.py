@@ -234,8 +234,11 @@ class PromptFactory(object):
             template = [
                 Template("Description: $narration \n\n###\n\n Questions: $question \n Options: \n A: $optionA \n B: $optionB \n C: $optionC \n D: $optionD \n E: $optionE \n\n###\n\n The prediction, explanation, confidence is (please response in the format of 'prediction: \n explanation: \n confidence: \n frame relevance: \n'):"),
             ],
-            post_process_fn = first_char_as_answer
+            post_process_fn = update_relevance_response
         )
+
+
+        
 
         # next-qa QA, intentQA QA  question answering
         prompt_templates['next_neo'] = PromptTemplate(

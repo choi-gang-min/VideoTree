@@ -124,9 +124,115 @@ def launch():
 
             cluster_ids_x = cluster_ids_x.tolist()
             # relevance scoring
+
+            #-------------      
+            # IntentQA narration 전처리
+            if args.dataset == 'intentqa':
+                # narration을 tree_node에 해당하는 프레임만 남기기
+                lines = item['narration'].strip().split('\n')
+                narration_dict = {}
+                for line in lines:
+                    if ': ' in line:
+                        idx, caption = line.split(': ', 1)
+                        narration_dict[int(idx)] = caption
+                
+                # tree_node에 해당하는 프레임만 선택
+                selected_narrations = []
+                for idx in tree_node:
+                    if idx in narration_dict:
+                        selected_narrations.append(f"{idx}: {narration_dict[idx]}")
+                
+                # item 복사 후 narration 교체
+                item_copy = item.copy()
+                item_copy['narration'] = '\n'.join(selected_narrations)
+            else:
+                item_copy = item
+            #------------------
+
+
             model.set_post_process_fn(prompter.post_process_fn)
-            prompt = prompter.fill(**item, fps=args.fps, clip_length=clip_length, num_words=args.num_words_in_sum, examplars=few_shot_examples, loc_pred = tree_node)
-            pred, info = model.forward(prompter.head, prompt)
+            # prompt = prompter.fill(**item, fps=args.fps, clip_length=clip_length, num_words=args.num_words_in_sum, examplars=few_shot_examples, loc_pred = tree_node)
+
+            # 수정 후 (IntentQA일 때만)
+            if args.dataset == 'intentqa':
+                prompt = prompter.fill(**item_copy, fps=args.fps, clip_length=clip_length, 
+                                    num_words=args.num_words_in_sum, examplars=few_shot_examples)
+                # loc_pred를 빼기!
+            else:
+                prompt = prompter.fill(**item_copy, fps=args.fps, clip_length=clip_length, 
+                                    num_words=args.num_words_in_sum, examplars=few_shot_examples, 
+                                    loc_pred=tree_node)
+
+
+            # pred, info = model.forward(prompter.head, prompt)
+            max_attempts = 10
+
+            fallback_head = (
+                "You are presented with a textual description of a video, it consists of N frame captions sparsely sampled from the video "
+                "(#C means the first person view, and #O indicates another). "
+                "The ultimate goal is to answer a question related to this video, choosing the correct option out of five possible answers. "
+                "Please provide the answer with a single-letter (A, B, C, D, E). "
+                "It is crucial that you imagine the visual scene as vividly as possible to enhance the accuracy of your response. "
+                "After selecting your answer, rate your confidence level in this choice on a scale from 1 to 100, "
+                "where 1 indicates low confidence and 100 signifies high confidence. "
+                "Please provide a concise one-sentence explanation for your chosen answer. "
+                "If you are uncertain about the correct option, select the one that seems closest to being correct. "
+                f"\n\nThere are exactly {len(tree_node)} frame captions above. "
+                f"Please return exactly {len(tree_node)} relevance scores, one for each frame, "
+                "in the format of a list like [1, 2, 3, ..., 1]. "
+                "Each number should correspond to the relevance of each frame caption in the same order. "
+                "The score is between 1 (low relevance), 2 (medium), and 3 (high relevance). "
+                "Please return your final answer in the format below:\n\n"
+                "prediction:\n explanation:\n confidence:\n frame relevance:\n"
+            )
+
+
+            # for attempt in range(max_attempts):
+            #     pred, info = model.forward(prompter.head, prompt)
+
+            #     frame_relevance = pred
+            #     if len(frame_relevance) == len(tree_node):
+            #         print("Success -> Attempt:", attempt + 1)
+            #         break  # 정상 → 루프 탈출
+            #     else:
+            #         print(f"[Warning] Relevance score length doesn't match to cluster Number  (Trying {attempt + 1}/{max_attempts})")
+            #         print(f"→ tree_node: {len(tree_node)}, pred: {len(frame_relevance)}")
+            #         print("Caption Prompt:", prompt[:300])
+            #         print("Raw response:", info['response'])
+
+            #         if attempt < max_attempts - 1:
+            #             print("→ Retrying...")
+            #         else:
+            #             raise ValueError(f"Retried {max_attempts} time, but Tree_node and scoring doesn't match. Jump to next video.")
+
+            for attempt in range(max_attempts):
+                # 5번째 시도부터는 fallback_head 사용
+                if attempt >= 5:
+                    current_head = fallback_head
+                else:
+                    current_head = prompter.head
+
+                pred, info = model.forward(current_head, prompt)
+
+                frame_relevance = pred
+                if len(frame_relevance) == len(tree_node):
+                    print("✅ Success -> Attempt:", attempt + 1)
+                    break
+                else:
+                    print(f"[⚠️ Warning] Relevance score length mismatch (Attempt {attempt + 1}/{max_attempts})")
+                    print(f"→ len(tree_node): {len(tree_node)}, len(pred): {len(frame_relevance)}")
+                    print("Caption Prompt:", prompt[:300])
+                    print("Raw response:", info['response'][:300])
+
+                    if attempt < max_attempts - 1:
+                        print("→ Retrying...")
+                    else:
+                        raise ValueError(f"❌ Retried {max_attempts} times, but tree_node and relevance scoring still mismatch. Skipping this video.")
+
+
+
+
+
             ukey_name = 'quid' if 'quid' in item else 'uid'
 
             # the output is the predicted frame relevance
@@ -166,6 +272,25 @@ def launch():
 
         ukey = item[ukey_name]
 
+        
+        # # ========= 여기에 추가 =========
+        # # 고유한 키 생성
+        # if args.dataset == 'intentqa':
+        #     video_id = item['uid']  # 비디오 ID
+        #     qid = item['qid']      # 질문 ID
+        #     ukey = f"{video_id}_{qid}"  # "11_2", "12_2" 형태
+        # else:
+        #     ukey = item[ukey_name]  # 기존대로
+        # ===============================
+        if args.dataset == 'intentqa':
+            video_id = item['uid']
+            qid = item['qid']
+            ukey = f"{video_id}_{qid}"  # 예: "video_01_3"
+        else:
+            ukey_name = 'quid' if 'quid' in item else 'uid'
+            ukey = item[ukey_name]
+
+        
         processed[ukey] = item
 
         processed[ukey]['prompt'] = prompt
@@ -189,7 +314,9 @@ def launch():
             backup = backup['data']
         for uid in processed:
             if processed[uid]['pred'] == -1:
+                # processed[uid]['pred'] = backup[uid]['pred']
                 processed[uid]['pred'] = backup[uid]['pred']
+
 
     # if eval
     if not args.disable_eval:
