@@ -40,6 +40,8 @@ def eval_qa_nextqa(anno_file_path, preds):
     sample_list = pd.read_csv(anno_file_path)
     group = {'CW':[], 'CH':[], 'TN':[], 'TC':[], 'DC':[], 'DL':[], 'DO':[]}
     for id, row in sample_list.iterrows():
+
+        #accuracy error / 질문 acc_count가 안되고있음.
         qns_id = str(row['video']) + '_' + str(row['qid'])
         if qns_id not in preds:
             continue

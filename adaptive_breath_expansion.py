@@ -165,7 +165,7 @@ def launch():
 
 
             # pred, info = model.forward(prompter.head, prompt)
-            max_attempts = 10
+            max_attempts = 7
 
             fallback_head = (
                 "You are presented with a textual description of a video, it consists of N frame captions sparsely sampled from the video "
@@ -207,7 +207,7 @@ def launch():
 
             for attempt in range(max_attempts):
                 # 5번째 시도부터는 fallback_head 사용
-                if attempt >= 5:
+                if attempt >= 3:
                     current_head = fallback_head
                 else:
                     current_head = prompter.head
@@ -227,7 +227,7 @@ def launch():
                     if attempt < max_attempts - 1:
                         print("→ Retrying...")
                     else:
-                        raise ValueError(f"❌ Retried {max_attempts} times, but tree_node and relevance scoring still mismatch. Skipping this video.")
+                        print(f"❌ Retried {max_attempts} times, but tree_node and relevance scoring still mismatch. Skipping this video.")
 
 
 
@@ -267,8 +267,8 @@ def launch():
                 break
             
             
-        all_width_res.append({"name": ukey_1, "tree_node": tree_node, "cluster_ids_x": cluster_ids_x})
-
+        
+        
 
         ukey = item[ukey_name]
 
@@ -289,6 +289,9 @@ def launch():
         else:
             ukey_name = 'quid' if 'quid' in item else 'uid'
             ukey = item[ukey_name]
+
+        all_width_res.append({"name": ukey, "tree_node": tree_node, "cluster_ids_x": cluster_ids_x})
+        
 
         
         processed[ukey] = item

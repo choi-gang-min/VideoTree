@@ -251,21 +251,28 @@ def depth_expansion(args):
     i = 0 
     max = 1
 
-    for example_path in example_path_list:
-
+    # for example_path in example_path_list:
+    for example_path in list(cap_score_data['data'].keys()):
+        
+        example_path_video_id = example_path.split('_')[0]  #! only vid
         # comment out when testing full set
-        if example_path.name not in subset_names_list:
+        # if example_path.name not in subset_names_list:
+        #     continue
+        if example_path_video_id not in subset_names_list:
             continue
 
-        name_ids = example_path.name
-        img_feats = load_image_features(name_ids, save_folder)
+        name_ids = example_path  #! qid포함
+      
+        img_feats = load_image_features(example_path_video_id, save_folder)
         
         #이건 아마 EGOSCHEMA용인듯
         if args.dataset == 'egoschema':
+            name_ids = example_path.name
             relevance_scores = cap_score_data['data'][name_ids]['pred']
     
         elif args.dataset == 'intentqa':
-            relevance_scores = cap_score_data[name_ids]['pred']
+            # relevance_scores = cap_score_data[name_ids]['pred']
+            relevance_scores = cap_score_data['data'][example_path]['pred']
         else:
             pass 
 
@@ -274,12 +281,18 @@ def depth_expansion(args):
 
         img_feats = img_feats.cpu()
         
-        clusters_info = hierarchical_clustering_with_external_primary(img_feats,primary_cluster_ids, relevance_scores ,num_subclusters=4, num_subsubclusters=4)
+        if args.dataset == 'egoschema':
+            clusters_info = hierarchical_clustering_with_external_primary(img_feats,primary_cluster_ids, relevance_scores ,num_subclusters=4, num_subsubclusters=4)
+
+
+
+        elif args.dataset == 'intentqa':
+            clusters_info = hierarchical_clustering_with_external_primary(img_feats,primary_cluster_ids, relevance_scores ,num_subclusters=2, num_subsubclusters=2)
 
         closest_points_temporal_subsub = find_closest_points_in_temporal_order_subsub(img_feats, clusters_info,relevance_scores)
         # print("closest_points_temporal_subsub",closest_points_temporal_subsub)
 
-        all_data.append({"name": example_path.name, "sorted_values": closest_points_temporal_subsub, "relevance": relevance_scores})
+        all_data.append({"name": name_ids, "sorted_values": closest_points_temporal_subsub, "relevance": relevance_scores})
 
         pbar.update(1)
 
